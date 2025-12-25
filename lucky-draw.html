@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>喵比幸運抽獎機 ✨</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-[#fdfbf7] min-h-screen font-sans text-slate-700 flex items-center justify-center p-4">
+
+    <div class="max-w-4xl w-full bg-white rounded-[2rem] shadow-2xl border-4 border-[#fef3c7] overflow-hidden flex flex-col md:flex-row min-h-[600px]">
+        
+        <div class="w-full md:w-1/3 bg-[#0f141e] p-8 text-white flex flex-col relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-[#f59e0b] to-transparent opacity-20 rounded-full blur-2xl"></div>
+            
+            <div class="relative z-10">
+                <h1 class="text-3xl font-black mb-1 flex items-center gap-2 text-[#f59e0b]">
+                    <span>🎰</span> 幸運抽獎
+                </h1>
+                <p class="text-xs text-gray-400 font-bold mb-8 tracking-widest">LUCKY DRAW SYSTEM</p>
+
+                <div class="space-y-2 mb-6 flex-1">
+                    <label class="text-xs font-bold text-gray-400 uppercase">1. 參賽者名單 (一行一個)</label>
+                    <textarea id="namesInput" class="w-full h-48 bg-gray-800/50 border border-gray-700 rounded-xl p-3 text-sm focus:ring-2 focus:ring-[#f59e0b] outline-none resize-none scrollbar-hide text-gray-200 font-mono" placeholder="喵比闆闆&#10;三喵嬌奴才&#10;喵比小幫手&#10;..."></textarea>
+                    <div class="text-right text-[10px] text-gray-500">目前人數: <span id="count" class="text-[#f59e0b]">0</span> 人</div>
+                </div>
+
+                <div class="space-y-2 mb-8">
+                    <label class="text-xs font-bold text-gray-400 uppercase">2. 抽出人數</label>
+                    <div class="flex items-center gap-2">
+                        <button onclick="adjustCount(-1)" class="w-10 h-10 rounded-lg bg-gray-800 hover:bg-gray-700 text-white font-bold">-</button>
+                        <input id="winnerCount" type="number" value="1" min="1" class="flex-1 h-10 bg-transparent text-center text-2xl font-black text-[#f59e0b] outline-none border-b-2 border-gray-700 focus:border-[#f59e0b]">
+                        <button onclick="adjustCount(1)" class="w-10 h-10 rounded-lg bg-gray-800 hover:bg-gray-700 text-white font-bold">+</button>
+                    </div>
+                </div>
+
+                <button id="drawBtn" class="w-full bg-gradient-to-r from-[#f59e0b] to-[#d97706] text-white py-4 rounded-xl font-black text-lg shadow-lg hover:scale-[1.02] active:scale-95 transition-all">
+                    🚀 開始抽獎
+                </button>
+                
+                <button onclick="reset()" class="w-full mt-3 text-xs text-gray-500 hover:text-white underline">重置所有資料</button>
+            </div>
+        </div>
+
+        <div class="flex-1 bg-gradient-to-br from-[#fffbeb] to-white p-8 flex flex-col items-center justify-center relative">
+            
+            <div id="displayArea" class="text-center">
+                <div class="text-8xl mb-6 animate-float">🎁</div>
+                <h2 class="text-2xl font-black text-gray-400">準備好迎接幸運兒了嗎？</h2>
+                <p class="text-sm text-gray-300 mt-2">輸入名單後按下按鈕開始</p>
+            </div>
+
+            <div id="rollingArea" class="hidden flex flex-col items-center">
+                <div class="text-6xl font-black text-[#f59e0b] animate-pulse">🎲 抽選中...</div>
+                <div id="rollingName" class="text-4xl font-bold text-gray-300 mt-4 h-12">---</div>
+            </div>
+
+            <div id="resultArea" class="hidden w-full h-full flex flex-col">
+                <h3 class="text-center text-xl font-black text-[#d97706] mb-6 flex items-center justify-center gap-2">
+                    ✨ 恭喜中獎名單 ✨
+                </h3>
+                <div id="winnerList" class="flex-1 overflow-y-auto content-start grid grid-cols-1 sm:grid-cols-2 gap-4 p-2">
+                    </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const namesInput = document.getElementById('namesInput');
+        const countDisplay = document.getElementById('count');
+        const winnerCountInput = document.getElementById('winnerCount');
+        const displayArea = document.getElementById('displayArea');
+        const rollingArea = document.getElementById('rollingArea');
+        const resultArea = document.getElementById('resultArea');
+        const winnerList = document.getElementById('winnerList');
+        const rollingName = document.getElementById('rollingName');
+        const drawBtn = document.getElementById('drawBtn');
+
+        let isDrawing = false;
+
+        // 更新人數統計
+        namesInput.addEventListener('input', () => {
+            const names = getNames();
+            countDisplay.innerText = names.length;
+        });
+
+        function getNames() {
+            return namesInput.value.split('\n').map(n => n.trim()).filter(n => n);
+        }
+
+        function adjustCount(delta) {
+            let val = parseInt(winnerCountInput.value) || 1;
+            val += delta;
+            if (val < 1) val = 1;
+            winnerCountInput.value = val;
+        }
+
+        function reset() {
+            namesInput.value = '';
+            countDisplay.innerText = '0';
+            winnerCountInput.value = 1;
+            displayArea.classList.remove('hidden');
+            resultArea.classList.add('hidden');
+            rollingArea.classList.add('hidden');
+            winnerList.innerHTML = '';
+        }
+
+        // 核心抽獎邏輯
+        drawBtn.addEventListener('click', async () => {
+            if (isDrawing) return;
+            
+            const names = getNames();
+            const count = parseInt(winnerCountInput.value);
+
+            if (names.length === 0) return alert('請先輸入參賽者名單！');
+            if (count > names.length) return alert('抽出人數不能大於參賽人數！');
+
+            isDrawing = true;
+            drawBtn.disabled = true;
+            drawBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            // 1. 切換到滾動畫面
+            displayArea.classList.add('hidden');
+            resultArea.classList.add('hidden');
+            rollingArea.classList.remove('hidden');
+
+            // 2. 隨機選出中獎者
+            const shuffled = [...names].sort(() => 0.5 - Math.random());
+            const winners = shuffled.slice(0, count);
+
+            // 3. 滾動特效 (假裝在跑)
+            let rollInterval = setInterval(() => {
+                rollingName.innerText = names[Math.floor(Math.random() * names.length)];
+            }, 50);
+
+            // 4. 等待 2 秒後顯示結果
+            await new Promise(r => setTimeout(r, 2000));
+            clearInterval(rollInterval);
+
+            // 5. 顯示結果
+            rollingArea.classList.add('hidden');
+            resultArea.classList.remove('hidden');
+            renderWinners(winners);
+            
+            // 6. 放煙火
+            fireConfetti();
+
+            isDrawing = false;
+            drawBtn.disabled = false;
+            drawBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            drawBtn.innerText = '再次抽獎 (重新洗牌)';
+        });
+
+        function renderWinners(winners) {
+            winnerList.innerHTML = '';
+            winners.forEach((name, index) => {
+                const div = document.createElement('div');
+                div.className = 'bg-white p-4 rounded-xl shadow-md border-l-4 border-[#f59e0b] flex items-center justify-between animate-float';
+                div.style.animationDelay = `${index * 0.1}s`; // 錯開動畫
+                div.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-[#fef3c7] text-[#d97706] flex items-center justify-center font-black text-xs">
+                            ${index + 1}
+                        </div>
+                        <span class="font-bold text-lg text-gray-800">${name}</span>
+                    </div>
+                    <span class="text-2xl">🎉</span>
+                `;
+                winnerList.appendChild(div);
+            });
+        }
+
+        function fireConfetti() {
+            var duration = 3 * 1000;
+            var animationEnd = Date.now() + duration;
+            var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+            var interval = setInterval(function() {
+                var timeLeft = animationEnd - Date.now();
+
+                if (timeLeft <= 0) {
+                    return clearInterval(interval);
+                }
+
+                var particleCount = 50 * (timeLeft / duration);
+                confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } }));
+                confetti(Object.assign({}, defaults, { particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } }));
+            }, 250);
+        }
+
+        function randomInRange(min, max) {
+            return Math.random() * (max - min) + min;
+        }
+    </script>
+</body>
+</html>
